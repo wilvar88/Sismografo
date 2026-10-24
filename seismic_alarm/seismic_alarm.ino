@@ -62,10 +62,11 @@ WiFiClient espMqttClient;
 PubSubClient mqttClient(espMqttClient);
 const char* MQTT_BROKER       = "broker.emqx.io";
 const int   MQTT_PORT         = 1883;
-const char* MQTT_TOPIC_DATA   = "sismografo/wilvar88/data";
-const char* MQTT_TOPIC_EVENTS = "sismografo/wilvar88/events";
-const char* MQTT_TOPIC_CMD    = "sismografo/wilvar88/cmd";
-const char* MQTT_TOPIC_STATUS = "sismografo/wilvar88/status";
+const char* MQTT_TOPIC_DATA    = "sismografo/wilvar88/data";
+const char* MQTT_TOPIC_EVENTS  = "sismografo/wilvar88/events";
+const char* MQTT_TOPIC_HISTORY = "sismografo/wilvar88/history";
+const char* MQTT_TOPIC_CMD     = "sismografo/wilvar88/cmd";
+const char* MQTT_TOPIC_STATUS  = "sismografo/wilvar88/status";
 unsigned long lastMqttReconnect = 0;
 
 // --- ESTRUCTURA Y MEMORIA HISTÓRICA DE EVENTOS SÍSMICOS ("CAJA NEGRA") ---
@@ -156,6 +157,7 @@ void handleAPIWifi();
 void handleAPISinricConfig();
 void checkMqtt();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
+void publishEventsHistoryMQTT();
 
 void setup() {
   Serial.begin(115200);
@@ -285,7 +287,7 @@ void setup() {
   // 10. Configurar cliente MQTT Cloud (EMQX)
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
-  mqttClient.setBufferSize(512);
+  mqttClient.setBufferSize(4096);
 
   server.begin();
   Serial.println("[OK] Sistema listo");
@@ -743,6 +745,7 @@ void recordSeismicEvent(float maxMag, float durSec, char domAxis) {
   webSocket.broadcastTXT(evJson);
   if (mqttClient.connected()) {
     mqttClient.publish(MQTT_TOPIC_EVENTS, evJson.c_str(), true);
+    publishEventsHistoryMQTT();
   }
   
   Serial.printf("[SISMO] #%d %s %.3fg %s\n", ev.id, ev.time, ev.pga, ev.intensity);
@@ -971,8 +974,35 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       }
     } else if (message == "calibrate") {
       handleAPICalibrate();
+    } else if (message == "get_history" || message == "get_events") {
+      publishEventsHistoryMQTT();
+    } else if (message == "clear_events") {
+      eventCount = 0;
+      nextEventIndex = 0;
+      saveEventsToNVS();
+      mqttClient.publish(MQTT_TOPIC_HISTORY, "[]", true);
+      Serial.println("[MQTT] Historial borrado");
     }
   }
+}
+
+void publishEventsHistoryMQTT() {
+  if (!mqttClient.connected()) return;
+  String json = "[";
+  for (int i = 0; i < eventCount; i++) {
+    int idx = (nextEventIndex - 1 - i + MAX_EVENTS) % MAX_EVENTS;
+    SeismicEvent &ev = eventsLog[idx];
+    if (i > 0) json += ",";
+    json += "{\"id\":" + String(ev.id) + 
+            ",\"time\":\"" + String(ev.time) + 
+            "\",\"pga\":" + String(ev.pga, 3) + 
+            ",\"dur\":" + String(ev.duration, 1) + 
+            ",\"axis\":\"" + String(ev.axis) + 
+            "\",\"intensity\":\"" + String(ev.intensity) + "\"}";
+  }
+  json += "]";
+  mqttClient.publish(MQTT_TOPIC_HISTORY, json.c_str(), true); // Retained = true
+  Serial.printf("[MQTT] Historial publicado (%d evts)\n", eventCount);
 }
 
 void checkMqtt() {
@@ -989,6 +1019,7 @@ void checkMqtt() {
         Serial.println("¡Conectado!");
         mqttClient.publish(MQTT_TOPIC_STATUS, "online", true);
         mqttClient.subscribe(MQTT_TOPIC_CMD);
+        publishEventsHistoryMQTT(); // Publicar historial inmediatamente al conectar
       } else {
         Serial.printf("Fallo rc=%d\n", mqttClient.state());
       }
@@ -997,4 +1028,5 @@ void checkMqtt() {
     mqttClient.loop();
   }
 }
+
 

@@ -680,6 +680,7 @@
     var MQTT_BROKER_WS = 'wss://broker.emqx.io:8084/mqtt';
     var MQTT_TOPIC_DATA = 'sismografo/wilvar88/data';
     var MQTT_TOPIC_EVENTS = 'sismografo/wilvar88/events';
+    var MQTT_TOPIC_HISTORY = 'sismografo/wilvar88/history';
     var MQTT_TOPIC_CMD = 'sismografo/wilvar88/cmd';
     var MQTT_TOPIC_STATUS = 'sismografo/wilvar88/status';
 
@@ -795,7 +796,9 @@
 
                 mqttClient.subscribe(MQTT_TOPIC_DATA);
                 mqttClient.subscribe(MQTT_TOPIC_EVENTS);
+                mqttClient.subscribe(MQTT_TOPIC_HISTORY);
                 mqttClient.subscribe(MQTT_TOPIC_STATUS);
+                mqttClient.publish(MQTT_TOPIC_CMD, 'get_history');
             });
 
             mqttClient.on('message', function(topic, payload){
@@ -813,6 +816,15 @@
                         var ev = JSON.parse(str);
                         addEventToTable(ev, true);
                     }catch(e){}
+                } else if(topic === MQTT_TOPIC_HISTORY){
+                    try{
+                        var list = JSON.parse(str);
+                        if(Array.isArray(list)){
+                            eventsList = list;
+                            renderEventsTable();
+                            console.log('[MQTT] Historial cargado:', eventsList.length);
+                        }
+                    }catch(e){}
                 } else if(topic === MQTT_TOPIC_STATUS){
                     if(str === 'offline'){
                         document.getElementById('statusDot').className='status-dot disconnected';
@@ -824,6 +836,17 @@
                     }
                 }
             });
+
+            mqttClient.on('offline', function(){
+                if(isMqttActive){
+                    document.getElementById('statusDot').className='status-dot disconnected';
+                    document.getElementById('statusText').innerText='Reconectando Nube...';
+                }
+            });
+        }catch(e){
+            console.error('MQTT Connect err', e);
+        }
+    }
 
             mqttClient.on('offline', function(){
                 if(isMqttActive){
@@ -1183,12 +1206,19 @@
 
     function clearEvents(){
         if(!confirm('¿Deseas borrar todo el historial de eventos sismicos de la memoria?')) return;
-        apiFetch('/api/events/clear')
-            .then(function(){
-                eventsList=[];
-                renderEventsTable();
-                showToast('Historial borrado','ok');
-            });
+        if(isMqttActive && mqttClient && mqttClient.connected){
+            mqttClient.publish(MQTT_TOPIC_CMD, 'clear_events');
+            eventsList=[];
+            renderEventsTable();
+            showToast('Historial borrado vía Cloud MQTT','ok');
+        } else {
+            apiFetch('/api/events/clear')
+                .then(function(){
+                    eventsList=[];
+                    renderEventsTable();
+                    showToast('Historial borrado','ok');
+                });
+        }
     }
 
     function exportCSV(){
