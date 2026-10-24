@@ -848,17 +848,6 @@
         }
     }
 
-            mqttClient.on('offline', function(){
-                if(isMqttActive){
-                    document.getElementById('statusDot').className='status-dot disconnected';
-                    document.getElementById('statusText').innerText='Reconectando Nube...';
-                }
-            });
-        }catch(e){
-            console.error('MQTT Connect err', e);
-        }
-    }
-
     function fetchDeviceInfo(host){
         fetch('http://'+host+'/api/info')
             .then(function(r){return r.json();})
