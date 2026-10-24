@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Sismografo IoT Cloud - Monitor Sismico Global</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg: linear-gradient(135deg,#0c0917 0%,#160b29 50%,#05050d 100%);
+            --glass: rgba(255,255,255,0.035);
+            --glass-card: rgba(22,14,38,0.65);
+            --border: rgba(255,255,255,0.08);
+            --border-hover: rgba(187,134,252,0.3);
+            --text: #f3f0f7;
+            --muted: #9b93b3;
+            --accent: #bb86fc;
+            --accent-glow: rgba(187,134,252,0.35);
+            --red: #ff3b30;
+            --green: #34c759;
+            --orange: #ff9500;
+            --cyan: #00e5ff;
+            --r: 16px;
+            --gap: 16px;
+        }
+        *{margin:0;padding:0;box-sizing:border-box;font-family:'Outfit',sans-serif;-webkit-tap-highlight-color:transparent;}
+        html,body{width:100%;min-height:100%;}
+        body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;display:flex;flex-direction:column;position:relative;}
+        body::before{content:'';position:fixed;width:550px;height:550px;border-radius:50%;filter:blur(140px);z-index:0;opacity:0.18;pointer-events:none;background:radial-gradient(circle,#6f2cf3,transparent 70%);top:-80px;left:-150px;}
+        body::after{content:'';position:fixed;width:450px;height:450px;border-radius:50%;filter:blur(130px);z-index:0;opacity:0.14;pointer-events:none;background:radial-gradient(circle,#ff2c7d,transparent 70%);bottom:-60px;right:-100px;}
+
+        /* HEADER */
+        header{padding:14px 22px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:sticky;top:0;z-index:200;background:rgba(12,8,25,0.85);}
+        .logo{display:flex;align-items:center;gap:11px;}
+        .logo i{font-size:22px;color:var(--accent);text-shadow:0 0 16px var(--accent);animation:pulse-icon 2.5s infinite ease-in-out;}
+        .logo h1{font-size:17px;font-weight:800;letter-spacing:.3px;background:linear-gradient(90deg,#fff 40%,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+        .logo .subtitle{font-size:11px;color:var(--muted);margin-left:2px;display:none;}
+        @media(min-width:640px){.logo .subtitle{display:block;}}
+        .header-right{display:flex;align-items:center;gap:10px;}
+        .conn-badge{background:rgba(255,255,255,0.05);padding:6px 13px;border-radius:30px;font-size:12px;display:flex;align-items:center;gap:7px;border:1px solid var(--border);}
+        .status-dot{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 7px var(--orange);flex-shrink:0;}
+        .status-dot.connected{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink-ok 2s infinite;}
+        .status-dot.disconnected{background:var(--red);box-shadow:0 0 7px var(--red);}
+        @keyframes blink-ok{0%,100%{opacity:1}50%{opacity:.4}}
+        .icon-btn{background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:15px;transition:all .22s;flex-shrink:0;}
+        .icon-btn:hover{background:rgba(255,255,255,0.12);color:white;transform:scale(1.06);}
+        .icon-btn.active{border-color:var(--green);color:var(--green);box-shadow:0 0 10px rgba(52,199,89,.25);}
+        .icon-btn.settings-btn.panel-open{border-color:var(--accent);color:var(--accent);box-shadow:0 0 12px var(--accent-glow);background:rgba(187,134,252,.1);}
+        @media(max-width:480px){.conn-badge span{display:none;}}
+
+        /* DISCOVERY BAR */
+        #discoveryBar{display:none;background:rgba(187,134,252,.08);border-bottom:1px solid rgba(187,134,252,.25);padding:10px 20px;align-items:center;gap:11px;font-size:12px;flex-wrap:wrap;z-index:150;}
+        #discoveryBar input{background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:7px;padding:6px 11px;color:white;font-size:12px;outline:none;width:190px;}
+        #discoveryBar button{background:var(--accent);color:#120326;border:none;border-radius:7px;padding:6px 14px;font-weight:700;font-size:12px;cursor:pointer;}
+
+        /* MAIN LAYOUT */
+        .main{flex:1;padding:var(--gap);display:grid;gap:var(--gap);grid-template-columns:1fr;position:relative;z-index:1;}
+        @media(min-width:880px){.main{grid-template-columns:1.65fr 1fr;}}
+
+        /* CARDS */
+        .card{background:var(--glass-card);border:1px solid var(--border);border-radius:var(--r);padding:20px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.35);transition:border-color .3s,box-shadow .3s;position:relative;}
+        .card:hover{border-color:rgba(255,255,255,.14);box-shadow:0 12px 40px rgba(80,30,180,.15);}
+        .card h2{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.05);padding-bottom:10px;}
+        .card h2 .title-left{display:flex;align-items:center;gap:9px;}
+        .card h2 i{color:var(--accent);}
+
+        /* ALERT HERO */
+        .alert-hero{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px 14px;border-radius:14px;margin-bottom:14px;border:1px solid rgba(255,255,255,.04);background:rgba(0,0,0,.25);transition:all .4s ease;position:relative;}
+        .alert-hero.active{background:rgba(255,59,48,.18);border-color:rgba(255,59,48,.5);animation:shake .45s infinite;}
+        .alert-hero.active::before{content:'';position:absolute;inset:0;box-shadow:inset 0 0 60px rgba(255,59,48,.35);border-radius:14px;pointer-events:none;}
+        .wave-wrap{width:80px;height:80px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:10px;}
+        .wave-circle{width:66px;height:66px;border-radius:50%;background:rgba(255,255,255,.05);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;z-index:2;transition:all .3s;}
+        .alert-hero.active .wave-circle{border-color:var(--red);background:rgba(255,59,48,.25);color:var(--red);}
+        .wave-ring{position:absolute;width:66px;height:66px;border:1px solid var(--accent);border-radius:50%;opacity:0;z-index:1;}
+        .alert-hero.active .wave-ring{border-color:var(--red);animation:ripple 1.5s infinite linear;}
+        .alert-hero.active .wave-ring:nth-child(2){animation-delay:.5s}
+        .alert-hero.active .wave-ring:nth-child(3){animation-delay:1s}
+        .alert-title{font-size:24px;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;}
+        .alert-sub{font-size:12px;color:var(--muted);line-height:1.4;max-width:320px;}
+
+        /* SEISMOGRAPH CANVAS & TOOLBAR */
+        .seismo-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;padding:6px 10px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid rgba(255,255,255,.04);font-size:11px;}
+        .tb-group{display:flex;align-items:center;gap:6px;}
+        .tb-label{color:var(--muted);font-size:11px;}
+        .tb-select{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:11px;outline:none;cursor:pointer;}
+        .tb-select option{background:#160e26;color:white;}
+        .badge-readout{font-family:'JetBrains Mono',monospace;font-size:10px;background:rgba(187,134,252,.1);border:1px solid rgba(187,134,252,.25);padding:2px 7px;border-radius:5px;color:var(--accent);}
+
+        .seismo-wrap{width:100%;border-radius:12px;margin-bottom:10px;overflow:hidden;position:relative;}
+        .seismo-canvas{width:100%;background:rgba(6,4,12,.85);border-radius:12px;border:1px solid rgba(255,255,255,.06);display:block;}
+        .legend{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;font-size:11px;margin-top:6px;}
+        .legend-item{display:flex;align-items:center;gap:5px;}
+        .legend-dot{width:10px;height:10px;border-radius:3px;}
+
+        /* HISTORIAL TABLE & FEED */
+        .history-card{margin-top:16px;}
+        .history-controls{display:flex;align-items:center;gap:8px;}
+        .btn-sm{padding:5px 11px;border-radius:7px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--text);transition:all .2s;}
+        .btn-sm:hover{background:rgba(255,255,255,.12);color:white;}
+        .btn-sm.btn-danger-sm:hover{background:rgba(255,59,48,.2);border-color:rgba(255,59,48,.4);color:var(--red);}
+        .events-table-wrap{max-height:280px;overflow-y:auto;border:1px solid rgba(255,255,255,.05);border-radius:10px;background:rgba(0,0,0,.25);margin-top:10px;}
+        .events-table{width:100%;border-collapse:collapse;font-size:11px;text-align:left;}
+        .events-table th{background:rgba(255,255,255,.04);color:var(--muted);padding:8px 10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:10px;position:sticky;top:0;backdrop-filter:blur(8px);z-index:2;}
+        .events-table td{padding:9px 10px;border-top:1px solid rgba(255,255,255,.03);color:#e2deed;}
+        .events-table tr:hover td{background:rgba(255,255,255,.02);}
+        .ev-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;}
+        .ev-micro{background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--cyan);}
+        .ev-leve{background:rgba(52,199,89,.12);border:1px solid rgba(52,199,89,.35);color:var(--green);}
+        .ev-mod{background:rgba(255,149,0,.15);border:1px solid rgba(255,149,0,.35);color:var(--orange);}
+        .ev-fuerte{background:rgba(255,59,48,.2);border:1px solid rgba(255,59,48,.45);color:var(--red);box-shadow:0 0 8px rgba(255,59,48,.3);}
+        .ev-empty{text-align:center;padding:26px 12px;color:var(--muted);font-size:12px;}
+
+        /* INFO GRID */
+        .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:14px;}
+        .info-item{background:rgba(0,0,0,.3);padding:14px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.03);text-align:center;}
+        .info-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+        .info-val{font-size:24px;font-weight:800;line-height:1;font-family:'JetBrains Mono',monospace;}
+        .info-val.big{font-size:32px;color:#fff;}
+
+        /* PRESETS DE SENSIBILIDAD */
+        .presets-title{font-size:11px;color:var(--muted);margin-bottom:7px;display:flex;align-items:center;gap:6px;}
+        .presets-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px;}
+        .preset-btn{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;padding:8px 6px;text-align:center;cursor:pointer;transition:all .2s;color:var(--text);}
+        .preset-btn:hover{background:rgba(187,134,252,.12);border-color:var(--accent);transform:translateY(-1px);}
+        .preset-btn.active{background:rgba(187,134,252,.2);border-color:var(--accent);box-shadow:0 0 10px var(--accent-glow);}
+        .preset-name{font-size:11px;font-weight:700;}
+        .preset-val{font-size:9px;color:var(--muted);margin-top:2px;font-family:'JetBrains Mono',monospace;}
+
+        /* BOTONES DE ACCION */
+        .btn{background:rgba(255,255,255,.05);color:white;border:1px solid var(--border);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .22s;}
+        .btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);transform:translateY(-1px);}
+        .btn-primary{background:var(--accent);color:#120326;border:none;}
+        .btn-primary:hover{background:#cd9cff;box-shadow:0 0 16px rgba(187,134,252,.4);}
+
+        /* SLIDER DE SENSIBILIDAD */
+        .ctrl-group{margin-bottom:12px;}
+        .ctrl-label{display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px;color:var(--muted);}
+        .range-slider{width:100%;height:5px;background:rgba(255,255,255,.1);outline:none;border-radius:10px;-webkit-appearance:none;}
+        .range-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px var(--accent);}
+
+        /* SETTINGS DRAWER */
+        .settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;opacity:0;pointer-events:none;transition:opacity .3s ease;backdrop-filter:blur(3px);}
+        .settings-overlay.visible{opacity:1;pointer-events:all;}
+        .settings-panel{position:fixed;top:0;right:0;width:360px;max-width:92vw;height:100vh;background:rgba(16,10,30,.98);border-left:1px solid var(--border);z-index:301;transform:translateX(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);}
+        .settings-panel.open{transform:translateX(0);}
+        .settings-panel-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+        .settings-panel-title{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;}
+        .settings-panel-close{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:14px;transition:all .2s;}
+        .settings-panel-close:hover{background:rgba(255,59,48,.15);color:var(--red);border-color:rgba(255,59,48,.3);}
+        .settings-panel-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
+
+        /* ACORDEON */
+        .accordion{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+        .acc-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none;}
+        .acc-head:hover{background:rgba(255,255,255,.04);}
+        .acc-head-left{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;}
+        .acc-head-left i{color:var(--accent);width:16px;text-align:center;}
+        .acc-arrow{color:var(--muted);font-size:11px;transition:transform .3s;}
+        .accordion.open .acc-arrow{transform:rotate(180deg);}
+        .acc-divider{height:1px;background:rgba(255,255,255,.05);margin:0 16px;display:none;}
+        .accordion.open .acc-divider{display:block;}
+        .acc-body{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.4,0,.2,1),padding .3s;padding:0 16px;}
+        .accordion.open .acc-body{max-height:700px;padding:10px 16px 16px;}
+
+        /* INPUTS */
+        .inp-group{margin-bottom:11px;}
+        .inp-group label{display:block;font-size:10px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
+        .inp{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:white;font-size:12px;outline:none;}
+        .inp:focus{border-color:var(--accent);}
+
+        /* DEVICE INFO BLOCK */
+        .device-info-block{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:13px;}
+        .drow{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;}
+        .drow:last-child{border-bottom:none;}
+        .dkey{color:var(--muted);}
+        .dval{color:var(--text);font-weight:600;}
+        .dval.accent{color:var(--accent);}
+        .dval.green{color:var(--green);}
+        .ota-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:10px;background:linear-gradient(135deg,rgba(187,134,252,.2),rgba(120,50,200,.25));border:1px solid rgba(187,134,252,.35);color:var(--accent);border-radius:10px;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;transition:all .2s;}
+        .ota-btn:hover{background:var(--accent);color:#120326;}
+
+        /* TOAST */
+        .toast{position:fixed;bottom:20px;right:20px;background:rgba(10,6,22,.96);border:1px solid var(--border);backdrop-filter:blur(12px);padding:12px 16px;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:9999;transform:translateY(130px);transition:transform .3s cubic-bezier(.175,.885,.32,1.275);display:flex;align-items:center;gap:9px;max-width:320px;font-size:13px;}
+        .toast.show{transform:translateY(0);}
+        .toast.ok i{color:var(--green);}
+        .toast.err i{color:var(--red);}
+        .toast.warn i{color:var(--orange);}
+
+        @keyframes ripple{0%{transform:scale(1);opacity:.8}100%{transform:scale(2.6);opacity:0}}
+        @keyframes pulse-icon{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+        @keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-2px,1px)}40%{transform:translate(2px,-2px)}60%{transform:translate(-1px,2px)}80%{transform:translate(3px,1px)}}
+        ::-webkit-scrollbar{width:5px;}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px;}
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <i class="fa-solid fa-house-signal"></i>
+        <h1>Sismografo Apartamento Natura Torre 7 Apto 902</h1>
+        <span class="subtitle">/ Alerta Sismica</span>
+    </div>
+    <div class="header-right">
+        <button id="simBtn" class="icon-btn" onclick="toggleSimulation()" title="Modo Simulador / Vista Previa">
+            <i class="fa-solid fa-flask"></i>
+        </button>
+        <button id="cloudBtn" class="icon-btn" onclick="openSettings()" title="Conexion Remota Cloud / ESP32">
+            <i class="fa-solid fa-cloud"></i>
+        </button>
+
+        <button id="soundBtn" class="icon-btn active" onclick="toggleSound()" title="Alerta sonora">
+            <i class="fa-solid fa-volume-high"></i>
+        </button>
+        <div class="conn-badge">
+            <div id="statusDot" class="status-dot disconnected"></div>
+            <span id="statusText">Desconectado</span>
+        </div>
+        <button id="settingsBtn" class="icon-btn settings-btn" onclick="toggleSettings()" title="Configuracion">
+            <i class="fa-solid fa-gear"></i>
+        </button>
+    </div>
+</header>
+
+<div id="discoveryBar">
+    <i class="fa-solid fa-satellite-dish" style="color:var(--accent);"></i>
+    <span>Conexion remota o direccion manual:</span>
+    <input type="text" id="manualIp" placeholder="IP o URL remota (ej: 192.168.1.36)">
+    <button onclick="connectManual()">Conectar</button>
+</div>
+
+<div id="settingsOverlay" class="settings-overlay" onclick="closeSettings()"></div>
+<div id="settingsPanel" class="settings-panel">
+    <div class="settings-panel-header">
+        <div class="settings-panel-title"><i class="fa-solid fa-gear"></i> Configuracion</div>
+        <button class="settings-panel-close" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="settings-panel-body">
+
+        
+        <!-- CONEXION REMOTA (VERCEL / CLOUD) -->
+        <div class="accordion open" id="accRemote">
+            <div class="acc-head" onclick="toggleAcc('accRemote')">
+                <div class="acc-head-left"><i class="fa-solid fa-globe"></i>Conexion Remota (Vercel)</div>
+                <i class="fa-solid fa-chevron-down acc-arrow"></i>
+            </div>
+            <div class="acc-divider"></div>
+            <div class="acc-body">
+                <p style="font-size:11px;color:var(--muted);margin:4px 0 11px;line-height:1.5;">
+                    Para monitorear tu sismografo desde cualquier lugar fuera de casa usando Vercel:
+                </p>
+                <div class="inp-group">
+                    <label>IP Local o URL de Tunel Cloudflare</label>
+                    <input type="text" id="cloudTunnelInput" class="inp" placeholder="ej. 192.168.1.36 o tunel.trycloudflare.com">
+                </div>
+                <button class="btn btn-primary" onclick="applyRemoteHost()" style="width:100%;">
+                    <i class="fa-solid fa-plug"></i> Conectar Ahora
+                </button>
+                <div class="info-box">
+                    <div class="info-box-title"><i class="fa-solid fa-circle-question"></i> ¿Como monitorear fuera de casa?</div>
+                    <div class="info-box-body">
+                        1. En tu PC en casa ejecuta:<br>
+                        <code style="background:rgba(0,0,0,.4);padding:2px 6px;border-radius:4px;color:var(--accent);display:block;margin:4px 0;word-break:break-all;">cloudflared tunnel --url http://192.168.1.36:80</code>
+                        2. Pega aqui la direccion <strong>https://...trycloudflare.com</strong> generada.<br>
+                        3. ¡Listo! Tendras transmision cifrada segura 24/7 sin abrir puertos en el router.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AJUSTES DEL SENSOR -->
+        <div class="accordion open" id="accSensor">
+            <div class="acc-head" onclick="toggleAcc('accSensor')">
+                <div class="acc-head-left"><i class="fa-solid fa-sliders"></i> Sensibilidad y Alarma</div>
+                <i class="fa-solid fa-chevron-down acc-arrow"></i>
+            </div>
+            <div class="acc-divider"></div>
+            <div class="acc-body">
+                <div class="ctrl-group" style="margin-top:6px;">
+                    <div class="ctrl-label">
+                        <span>Umbral de Sismo (g-force)</span>
+                        <span id="lblThreshold" style="color:var(--accent);font-weight:700;">0.025 g</span>
+                    </div>
+                    <input type="range" id="thresholdRange" class="range-slider" min="0.005" max="0.300" step="0.005" value="0.025" oninput="updateLabels()">
+                </div>
+                <div class="ctrl-group">
+                    <div class="ctrl-label">
+                        <span>Duracion de Alerta Activa</span>
+                        <span id="lblDuration">10 s</span>
+                    </div>
+                    <input type="range" id="durationRange" class="range-slider" min="5" max="120" step="5" value="10" oninput="updateLabels()">
+                </div>
+                <button class="btn btn-primary" onclick="sendConfig()" style="width:100%;margin-top:4px;">
+                    <i class="fa-solid fa-circle-check"></i> Guardar en Sensor
+                </button>
+                <button class="btn" onclick="calibrate()" style="width:100%;margin-top:8px;">
+                    <i class="fa-solid fa-scale-balanced"></i> Calibrar Nivel Cero
+                </button>
+            </div>
+        </div>
+
+        <!-- SINRIC PRO -->
+        <div class="accordion" id="accSinric">
+            <div class="acc-head" onclick="toggleAcc('accSinric')">
+                <div class="acc-head-left"><i class="fa-brands fa-aws"></i> Alexa / Sinric Pro</div>
+                <i class="fa-solid fa-chevron-down acc-arrow"></i>
+            </div>
+            <div class="acc-divider"></div>
+            <div class="acc-body">
+                <div class="inp-group">
+                    <label>App Key</label>
+                    <input type="text" id="sinricAppKey" class="inp" placeholder="App Key">
+                </div>
+                <div class="inp-group">
+                    <label>App Secret</label>
+                    <input type="password" id="sinricAppSecret" class="inp" placeholder="App Secret">
+                </div>
+                <div class="inp-group">
+                    <label>Device ID</label>
+                    <input type="text" id="sinricDeviceId" class="inp" placeholder="Device ID">
+                </div>
+                <button class="btn btn-primary" onclick="saveSinric()" style="width:100%;">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar y Reiniciar
+                </button>
+            </div>
+        </div>
+
+        <!-- RED WIFI -->
+        <div class="accordion" id="accWifi">
+            <div class="acc-head" onclick="toggleAcc('accWifi')">
+                <div class="acc-head-left"><i class="fa-solid fa-wifi"></i> Red WiFi</div>
+                <i class="fa-solid fa-chevron-down acc-arrow"></i>
+            </div>
+            <div class="acc-divider"></div>
+            <div class="acc-body">
+                <div class="inp-group">
+                    <label>SSID (Nombre Red 2.4GHz)</label>
+                    <input type="text" id="wifiSsid" class="inp" placeholder="SSID WiFi">
+                </div>
+                <div class="inp-group">
+                    <label>Contrasena</label>
+                    <input type="password" id="wifiPass" class="inp" placeholder="Contrasena">
+                </div>
+                <button class="btn btn-primary" onclick="saveWifi()" style="width:100%;">
+                    <i class="fa-solid fa-circle-nodes"></i> Guardar y Reiniciar
+                </button>
+            </div>
+        </div>
+
+        <!-- ACCESO REMOTO / VERCEL -->
+        <div class="accordion" id="accCloud">
+            <div class="acc-head" onclick="toggleAcc('accCloud')">
+                <div class="acc-head-left"><i class="fa-solid fa-cloud"></i> Monitoreo Remoto (Vercel)</div>
+                <i class="fa-solid fa-chevron-down acc-arrow"></i>
+            </div>
+            <div class="acc-divider"></div>
+            <div class="acc-body">
+                <p style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px;">
+                    Para ver el sismografo desde fuera de tu casa mediante Vercel, puedes usar un tunel seguro gratuito como <strong>Cloudflare Tunnel</strong> o <strong>Ngrok</strong> hacia la IP local de tu dispositivo.
+                </p>
+                <div class="inp-group">
+                    <label>URL Tunel Remoto (opcional)</label>
+                    <input type="text" id="cloudTunnelUrl" class="inp" placeholder="https://mi-sismo.trycloudflare.com">
+                </div>
+                <button class="btn btn-primary" onclick="saveCloudUrl()" style="width:100%;">
+                    <i class="fa-solid fa-link"></i> Usar Conexion Remota
+                </button>
+            </div>
+        </div>
+
+        <!-- INFO DEL DISPOSITIVO + OTA -->
+        <div id="deviceInfoBlock">
+            <div class="device-info-block">
+                <div class="drow"><span class="dkey">Hostname</span><span class="dval accent">sismografo.local</span></div>
+                <div class="drow"><span class="dkey">IP Local</span><span class="dval green" id="devIp">192.168.1.36</span></div>
+                <div class="drow"><span class="dkey">MAC</span><span class="dval" id="devMac">--</span></div>
+                <div class="drow"><span class="dkey">Uptime</span><span class="dval" id="devUptime">--</span></div>
+            </div>
+            <a id="otaLink" href="/update" target="_blank" class="ota-btn">
+                <i class="fa-solid fa-rocket"></i> Actualizar Firmware (OTA)
+            </a>
+        </div>
+
+    </div>
+</div>
+
+<div class="main">
+
+    <!-- COLUMNA IZQUIERDA: SISMOGRAFO Y HISTORIAL -->
+    <div style="display:flex;flex-direction:column;gap:var(--gap);">
+        
+        <!-- TARJETA SISMOGRAFO -->
+        <div class="card">
+            <h2>
+                <span class="title-left"><i class="fa-solid fa-chart-line"></i> Sismografo de Alta Sensibilidad</span>
+                <span class="badge-readout" id="scaleIndicator">Escala: Auto</span>
+            </h2>
+
+            <div class="alert-hero" id="alertHero">
+                <div class="wave-wrap">
+                    <div class="wave-ring"></div>
+                    <div class="wave-ring"></div>
+                    <div class="wave-ring"></div>
+                    <div class="wave-circle">
+                        <i class="fa-solid fa-house-circle-check" id="heroIcon"></i>
+                    </div>
+                </div>
+                <div class="alert-title" id="alarmStateText">Estable</div>
+                <div class="alert-sub" id="alarmStateSub">Monitoreando micro-vibraciones tectonicas</div>
+            </div>
+
+            <!-- BARRA DE CONTROLES DEL SISMOGRAFO -->
+            <div class="seismo-toolbar">
+                <div class="tb-group">
+                    <span class="tb-label"><i class="fa-solid fa-magnifying-glass-plus"></i> Zoom Onda:</span>
+                    <select id="scaleSelect" class="tb-select" onchange="changeScale()">
+                        <option value="auto" selected>Auto (Adaptable)</option>
+                        <option value="25">25x (Ultra Detalle)</option>
+                        <option value="10">10x (Alta Sensibilidad)</option>
+                        <option value="5">5x (Medio)</option>
+                        <option value="1">1x (Escala Real 1G)</option>
+                    </select>
+                </div>
+                <div class="tb-group">
+                    <span class="tb-label"><i class="fa-solid fa-wave-square"></i> Modo:</span>
+                    <select id="waveModeSelect" class="tb-select" onchange="changeWaveMode()">
+                        <option value="seismic" selected>Onda Sísmica Principal</option>
+                        <option value="multiaxis">Multieje (X, Y, Z)</option>
+                    </select>
+                </div>
+                <div class="tb-group">
+                    <span class="tb-label">Pico a Pico:</span>
+                    <span class="badge-readout" id="p2pReadout">0.000g</span>
+                </div>
+            </div>
+
+            <div class="seismo-wrap">
+                <canvas id="seismoCanvas" class="seismo-canvas" style="height:240px;"></canvas>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#00e5ff;box-shadow:0 0 6px #00e5ff;"></div><span>Onda Sismica (Picos y Valles)</span></div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--red);border:1px dashed rgba(255,255,255,.5);"></div><span>Umbral Alarma</span></div>
+                <div class="legend-item" id="legX" style="display:none;"><div class="legend-dot" style="background:#3a86f0;"></div><span>Eje X</span></div>
+                <div class="legend-item" id="legY" style="display:none;"><div class="legend-dot" style="background:#34c759;"></div><span>Eje Y</span></div>
+                <div class="legend-item" id="legZ" style="display:none;"><div class="legend-dot" style="background:#ff9500;"></div><span>Eje Z</span></div>
+            </div>
+        </div>
+
+        <!-- TARJETA REGISTRO HISTORICO ("CAJA NEGRA") -->
+        <div class="card history-card">
+            <h2>
+                <span class="title-left">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Registro Historico de Movimientos
+                </span>
+                <div class="history-controls">
+                    <span class="badge-readout" id="eventBadge">0 eventos</span>
+                    <button class="btn-sm" onclick="exportCSV()" title="Descargar reporte para Excel"><i class="fa-solid fa-file-arrow-down"></i> CSV</button>
+                    <button class="btn-sm btn-danger-sm" onclick="clearEvents()" title="Limpiar registro"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </h2>
+
+            <div class="events-table-wrap">
+                <table class="events-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha y Hora</th>
+                            <th>PGA (g-force)</th>
+                            <th>Intensidad Estimada</th>
+                            <th>Duracion</th>
+                            <th>Eje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eventsTableBody">
+                        <tr>
+                            <td colspan="6" class="ev-empty">
+                                <i class="fa-solid fa-shield-halved" style="font-size:24px;margin-bottom:8px;display:block;opacity:.4;"></i>
+                                No se han registrado movimientos sismicos recientes en la memoria.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- COLUMNA DERECHA: ESTADO, AJUSTES RAPIDOS Y TELEMETRIA -->
+    <div style="display:flex;flex-direction:column;gap:var(--gap);">
+        
+        <div class="card">
+            <h2><span class="title-left"><i class="fa-solid fa-heart-pulse"></i> Estado del Sistema</span></h2>
+
+            <div class="info-grid">
+                <div class="info-item" style="grid-column:span 2;">
+                    <div class="info-label">Vibracion Dinamica Actual</div>
+                    <div class="info-val big" id="valVibe">0.000<small style="font-size:14px;font-weight:400;color:var(--muted);">g</small></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Umbral Configurado</div>
+                    <div class="info-val" id="valThreshold" style="color:var(--accent);">0.025<small style="font-size:11px;color:var(--muted);">g</small></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Tiempo de Actividad</div>
+                    <div class="info-val" id="valUptime" style="font-size:17px;">00:00:00</div>
+                </div>
+            </div>
+
+            <!-- PRESETS DE SENSIBILIDAD RAPIDOS -->
+            <div class="presets-title"><i class="fa-solid fa-bolt" style="color:var(--accent);"></i> Presets Rapidos de Sensibilidad</div>
+            <div class="presets-grid">
+                <div class="preset-btn" onclick="applyPreset(0.010, this)">
+                    <div class="preset-name" style="color:var(--cyan);">Ultra-Sensible</div>
+                    <div class="preset-val">0.010 g (Paso tenue)</div>
+                </div>
+                <div class="preset-btn active" id="presetSensible" onclick="applyPreset(0.025, this)">
+                    <div class="preset-name" style="color:var(--green);">Sensible</div>
+                    <div class="preset-val">0.025 g (Micro-sismo)</div>
+                </div>
+                <div class="preset-btn" onclick="applyPreset(0.050, this)">
+                    <div class="preset-name" style="color:var(--orange);">Normal Hogar</div>
+                    <div class="preset-val">0.050 g (Sismo medio)</div>
+                </div>
+                <div class="preset-btn" onclick="applyPreset(0.100, this)">
+                    <div class="preset-name" style="color:var(--red);">Moderado</div>
+                    <div class="preset-val">0.100 g (Sismo fuerte)</div>
+                </div>
+            </div>
+
+            <!-- CALIBRAR NATIVO (SIN BOTON PROBAR) -->
+            <button class="btn" onclick="calibrate()" style="width:100%;"><i class="fa-solid fa-scale-balanced"></i> Recalibrar Sensor en Reposo</button>
+
+            <!-- MINI GRAFICO HISTORICO -->
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.05);">
+                <div style="font-size:11px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:7px;">
+                    <i class="fa-solid fa-wave-square" style="color:var(--accent);"></i>
+                    Magnitud Dinamica (Ultimos 60s)
+                </div>
+                <canvas id="miniCanvas" style="width:100%;height:60px;background:rgba(0,0,0,.35);border-radius:8px;border:1px solid rgba(255,255,255,.04);display:block;"></canvas>
+            </div>
+
+            <!-- BARRA DE NIVEL RESPECTO AL UMBRAL -->
+            <div style="margin-top:14px;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px;">
+                    <span>Intensidad Relativa</span>
+                    <span id="vibePercent">0%</span>
+                </div>
+                <div style="background:rgba(255,255,255,.07);border-radius:10px;height:8px;overflow:hidden;">
+                    <div id="vibeBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--orange),var(--red));border-radius:10px;transition:width .2s ease;"></div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div id="toast" class="toast"><i id="toastIcon" class="fa-solid fa-circle-check"></i><span id="toastMsg">OK</span></div>
+
+<script>
+    /* =======================================================
+       AUDIO DE ALERTA
+    ======================================================= */
+    var audioCtx=null,soundOn=true,sirenInterval=null,oscs=[];
+    function getCtx(){ if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+    function toggleSound(){
+        soundOn=!soundOn;
+        var b=document.getElementById('soundBtn');
+        if(soundOn){b.className='icon-btn active';b.innerHTML='<i class="fa-solid fa-volume-high"></i>';showToast('Alerta sonora activada','ok');}
+        else{b.className='icon-btn';b.innerHTML='<i class="fa-solid fa-volume-xmark"></i>';stopSiren();showToast('Alerta sonora silenciada','warn');}
+    }
+    function playSiren(){
+        if(!soundOn) return;
+        try{
+            var ctx=getCtx(),o=ctx.createOscillator(),g=ctx.createGain();
+            o.type='sawtooth';
+            g.gain.setValueAtTime(0,ctx.currentTime);
+            g.gain.linearRampToValueAtTime(.35,ctx.currentTime+.06);
+            g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.88);
+            o.frequency.setValueAtTime(480,ctx.currentTime);
+            o.frequency.exponentialRampToValueAtTime(1600,ctx.currentTime+.44);
+            o.frequency.exponentialRampToValueAtTime(480,ctx.currentTime+.88);
+            o.connect(g);g.connect(ctx.destination);
+            o.start(ctx.currentTime);o.stop(ctx.currentTime+.88);
+            oscs.push(o);
+        }catch(e){}
+    }
+    function startSiren(){ if(!soundOn||sirenInterval) return; playSiren(); sirenInterval=setInterval(playSiren,920); }
+    function stopSiren(){ if(sirenInterval){clearInterval(sirenInterval);sirenInterval=null;} oscs.forEach(function(o){try{o.stop();}catch(e){}});oscs=[]; }
+
+    /* =======================================================
+       PANEL Y NAVEGACION
+    ======================================================= */
+    var panelOpen=false;
+    function toggleSettings(){ if(panelOpen) closeSettings(); else openSettings(); }
+    function openSettings(){
+        panelOpen=true;
+        document.getElementById('settingsPanel').classList.add('open');
+        document.getElementById('settingsOverlay').classList.add('visible');
+        document.getElementById('settingsBtn').classList.add('panel-open');
+        document.body.style.overflow='hidden';
+    }
+    function closeSettings(){
+        panelOpen=false;
+        document.getElementById('settingsPanel').classList.remove('open');
+        document.getElementById('settingsOverlay').classList.remove('visible');
+        document.getElementById('settingsBtn').classList.remove('panel-open');
+        document.body.style.overflow='';
+    }
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeSettings(); });
+    function toggleAcc(id){ document.getElementById(id).classList.toggle('open'); }
+
+    
+    /* =======================================================
+       MODO SIMULADOR PARA VERCEL (Vista previa sin sensor)
+    ======================================================= */
+    var isSimulating = false, simInterval = null, simAngle = 0;
+    function toggleSimulation(){
+        isSimulating = !isSimulating;
+        var b = document.getElementById('simBtn');
+        if(isSimulating){
+            b.classList.add('active');
+            b.style.color = 'var(--cyan)';
+            b.style.borderColor = 'var(--cyan)';
+            startSimulation();
+            showToast('Modo Simulador activado', 'ok');
+        } else {
+            b.classList.remove('active');
+            b.style.color = '';
+            b.style.borderColor = '';
+            stopSimulation();
+            showToast('Modo Simulador detenido', 'warn');
+        }
+    }
+    function startSimulation(){
+        if(simInterval) clearInterval(simInterval);
+        document.getElementById('statusDot').className = 'status-dot connected';
+        document.getElementById('statusText').innerText = 'Simulador';
+        simInterval = setInterval(function(){
+            simAngle += 0.25;
+            var tremor = (Math.random() > 0.94) ? (Math.random() * 0.08) : 0;
+            var baseWave = Math.sin(simAngle) * 0.008 + (Math.random() - 0.5) * 0.004;
+            var totalWave = baseWave + (tremor > 0 ? (Math.sin(simAngle * 3) * tremor) : 0);
+            var mag = Math.abs(totalWave);
+            var isAlarm = (mag >= curThr) ? 1 : 0;
+            pushPoint(totalWave * 0.6, totalWave * 0.4, totalWave, mag, curThr);
+            updateUI(mag, curThr, isAlarm, "Sim 00:15:20");
+        }, 100);
+    }
+    function stopSimulation(){
+        if(simInterval){ clearInterval(simInterval); simInterval = null; }
+        if(!ws || ws.readyState !== WebSocket.OPEN){
+            document.getElementById('statusDot').className = 'status-dot disconnected';
+            document.getElementById('statusText').innerText = 'Desconectado';
+        }
+    }
+    function applyRemoteHost(){
+        var val = document.getElementById('cloudTunnelInput').value.trim();
+        if(!val){ showToast('Ingresa una IP o URL de túnel', 'err'); return; }
+        val = val.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        localStorage.setItem('esp32_host', val);
+        showToast('Conectando a ' + val + '...', 'warn');
+        connectWebSocket(val);
+        closeSettings();
+    }
+
+    /* =======================================================
+       WEBSOCKET Y COMUNICACION
+    ======================================================= */
+    var ws=null,isEsp=(window.location.hostname!=='localhost'&&window.location.hostname!=='127.0.0.1'&&window.location.protocol!=='file:');
+    var currentHost=window.location.hostname||'192.168.1.36', wsPort=81, discoveryAttempt=0, HOSTS_TO_TRY=[];
+    var eventsList=[];
+
+    function buildHostList(){
+        HOSTS_TO_TRY=[];
+        if(isEsp){ HOSTS_TO_TRY.push(currentHost); }
+        HOSTS_TO_TRY.push('192.168.1.36');
+        HOSTS_TO_TRY.push('sismografo.local');
+        var saved=localStorage.getItem('esp32_host');
+        if(saved&&!HOSTS_TO_TRY.includes(saved)) HOSTS_TO_TRY.push(saved);
+        var cloud=localStorage.getItem('cloud_tunnel_url');
+        if(cloud) document.getElementById('cloudTunnelUrl').value=cloud;
+    }
+    function startDiscovery(){ buildHostList(); var curH = localStorage.getItem("esp32_host") || "192.168.1.36"; var inp = document.getElementById("cloudTunnelInput"); if(inp) inp.value = curH; discoveryAttempt=0; tryNextHost(); }
+    function tryNextHost(){
+        if(discoveryAttempt>=HOSTS_TO_TRY.length){ document.getElementById('discoveryBar').style.display='flex'; return; }
+        var host=HOSTS_TO_TRY[discoveryAttempt++];
+        connectWebSocket(host);
+    }
+    function connectManual(){
+        var ip=document.getElementById('manualIp').value.trim();
+        if(!ip){ showToast('Ingresa una IP o host','err'); return; }
+        localStorage.setItem('esp32_host',ip);
+        document.getElementById('discoveryBar').style.display='none';
+        connectWebSocket(ip);
+    }
+    function saveCloudUrl(){
+        var u=document.getElementById('cloudTunnelUrl').value.trim();
+        localStorage.setItem('cloud_tunnel_url',u);
+        showToast('URL Remota guardada','ok');
+        if(u){
+            var cleanHost=u.replace(/^https?:\/\//,'').replace(/\/.*$/,'');
+            connectWebSocket(cleanHost);
+        }
+    }
+    function connectWebSocket(host){
+        if(ws){ try{ws.close();}catch(e){} ws=null; }
+        var isSecure=(window.location.protocol==='https:');
+        var proto=isSecure?'wss://':'ws://';
+        var portStr=(host.indexOf(':')>=0||isSecure)?'':(':'+wsPort);
+        var url=proto+host+portStr+'/';
+        try{
+            ws=new WebSocket(url);
+            var to=setTimeout(function(){ try{ws.close();}catch(e){} tryNextHost(); },3500);
+            ws.onopen=function(){
+                clearTimeout(to);
+                localStorage.setItem('esp32_host',host);
+                document.getElementById('statusDot').className='status-dot connected';
+                document.getElementById('statusText').innerText='Conectado';
+                document.getElementById('discoveryBar').style.display='none';
+                showToast('Conectado a '+host,'ok');
+                fetchDeviceInfo(host);
+                fetchEvents();
+            };
+            ws.onclose=function(){
+                clearTimeout(to);
+                document.getElementById('statusDot').className='status-dot disconnected';
+                document.getElementById('statusText').innerText='Desconectado';
+                setTimeout(tryNextHost,2500);
+            };
+            ws.onmessage=onMessage;
+            ws.onerror=function(){ clearTimeout(to); };
+        }catch(e){ tryNextHost(); }
+    }
+
+    function fetchDeviceInfo(host){
+        fetch('http://'+host+'/api/info')
+            .then(function(r){return r.json();})
+            .then(function(d){
+                document.getElementById('devIp').innerText=d.ip||host;
+                document.getElementById('devMac').innerText=d.mac||'--';
+                document.getElementById('devUptime').innerText=d.uptime||'--';
+                document.getElementById('otaLink').href='http://'+host+'/update';
+            }).catch(function(){});
+    }
+
+    function onMessage(e){
+        try{
+            // Mensaje de telemetria o evento JSON
+            if(e.data.startsWith('{')){
+                var obj=JSON.parse(e.data);
+                if(obj.type==='event'){
+                    addEventToTable(obj,true);
+                }
+                return;
+            }
+            var d=e.data.split(',');
+            if(d.length>=7){
+                var x=parseFloat(d[0]),y=parseFloat(d[1]),z=parseFloat(d[2]),
+                    mag=parseFloat(d[3]),thr=parseFloat(d[4]),alarm=parseInt(d[5]),upt=d[6];
+                pushPoint(x,y,z,mag,thr);
+                updateUI(mag,thr,alarm,upt);
+            }
+        }catch(ex){}
+    }
+
+    /* =======================================================
+       CANVAS SISMOGRAFO Y VISUALIZACION
+    ======================================================= */
+    var cvs,ctx2,N=320;
+    var xH=new Array(N).fill(0),yH=new Array(N).fill(0),zH=new Array(N).fill(0),mH=new Array(N).fill(0);
+    var seismoWave=new Array(N).fill(0); // Onda sismica continua con picos y valles
+    var curThr=0.025;
+    var userScaleMode='auto'; // 'auto', '25', '10', '5', '1'
+    var waveDisplayMode='seismic'; // 'seismic', 'multiaxis'
+    var activeScale=600;
+
+    var miniCvs,miniCtx,M=160,miniH=new Array(M).fill(0);
+
+    window.addEventListener('load',function(){
+        cvs=document.getElementById('seismoCanvas');
+        ctx2=cvs.getContext('2d');
+        miniCvs=document.getElementById('miniCanvas');
+        miniCtx=miniCvs.getContext('2d');
+        resizeCvs();
+        window.addEventListener('resize',resizeCvs);
+        drawGraph(); drawMini();
+        loadConfig();
+        startDiscovery();
+    });
+
+    function resizeCvs(){
+        cvs.width=cvs.parentElement.clientWidth;
+        cvs.height=240;
+        miniCvs.width=miniCvs.parentElement.clientWidth;
+        miniCvs.height=60;
+    }
+
+    function changeScale(){
+        userScaleMode=document.getElementById('scaleSelect').value;
+        drawGraph();
+    }
+
+    function changeWaveMode(){
+        waveDisplayMode=document.getElementById('waveModeSelect').value;
+        var isMulti=(waveDisplayMode==='multiaxis');
+        document.getElementById('legX').style.display=isMulti?'flex':'none';
+        document.getElementById('legY').style.display=isMulti?'flex':'none';
+        document.getElementById('legZ').style.display=isMulti?'flex':'none';
+        drawGraph();
+    }
+
+    function pushPoint(x,y,z,m,t){
+        xH.shift();xH.push(x);
+        yH.shift();yH.push(y);
+        zH.shift();zH.push(z);
+        mH.shift();mH.push(m);
+        miniH.shift();miniH.push(m);
+
+        // Sintesis de onda de desplazamiento dinamico (oscilacion natural del sismo)
+        // Combina los componentes vectoriales ortogonales preservando el signo del movimiento
+        var dominantComp=(Math.abs(x)>Math.abs(y)&&Math.abs(x)>Math.abs(z))?x:(Math.abs(y)>Math.abs(z)?y:z);
+        seismoWave.shift();
+        seismoWave.push(dominantComp);
+
+        curThr=t;
+        drawGraph();
+        drawMini();
+    }
+
+    function drawGraph(){
+        if(!ctx2) return;
+        var w=cvs.width,h=cvs.height;
+        ctx2.clearRect(0,0,w,h);
+
+        // 1. Calculo dinamico de escala para picos y valles hiper-visibles
+        var recentSlice=seismoWave.slice(-80);
+        var maxAmp=0;
+        for(var i=0;i<recentSlice.length;i++){
+            var a=Math.abs(recentSlice[i]);
+            if(a>maxAmp) maxAmp=a;
+        }
+        document.getElementById('p2pReadout').innerText=(maxAmp*2).toFixed(3)+'g';
+
+        if(userScaleMode==='auto'){
+            if(maxAmp<0.015) activeScale=1200; // Ultra ganancia para microsismos / toques
+            else if(maxAmp<0.040) activeScale=750;
+            else if(maxAmp<0.090) activeScale=450;
+            else if(maxAmp<0.200) activeScale=240;
+            else activeScale=110;
+            document.getElementById('scaleIndicator').innerText='Auto ('+Math.round(activeScale)+'x)';
+        } else {
+            var mult=parseFloat(userScaleMode);
+            activeScale=mult*80;
+            document.getElementById('scaleIndicator').innerText=userScaleMode+'x';
+        }
+
+        var cy=h/2;
+
+        // 2. Cuadricula sismografica
+        ctx2.strokeStyle='rgba(255,255,255,0.035)';
+        ctx2.lineWidth=1;
+        for(var x=0;x<w;x+=50){ ctx2.beginPath();ctx2.moveTo(x,0);ctx2.lineTo(x,h);ctx2.stroke(); }
+        for(var y=0;y<h;y+=30){ ctx2.beginPath();ctx2.moveTo(0,y);ctx2.lineTo(w,y);ctx2.stroke(); }
+
+        // Linea base cero
+        ctx2.strokeStyle='rgba(255,255,255,0.12)';
+        ctx2.lineWidth=1.2;
+        ctx2.beginPath();ctx2.moveTo(0,cy);ctx2.lineTo(w,cy);ctx2.stroke();
+
+        // 3. Lineas de referencia de aceleracion (+g y -g)
+        var refG=0.02; // Guia de referencia
+        if(activeScale<300) refG=0.10;
+        else if(activeScale<600) refG=0.05;
+
+        var refPx=refG*activeScale;
+        if(cy-refPx>15){
+            ctx2.strokeStyle='rgba(255,255,255,0.05)';
+            ctx2.setLineDash([3,4]);
+            ctx2.beginPath();ctx2.moveTo(0,cy-refPx);ctx2.lineTo(w,cy-refPx);ctx2.stroke();
+            ctx2.beginPath();ctx2.moveTo(0,cy+refPx);ctx2.lineTo(w,cy+refPx);ctx2.stroke();
+            ctx2.setLineDash([]);
+            ctx2.fillStyle='rgba(255,255,255,0.25)';
+            ctx2.font='9px Outfit';
+            ctx2.fillText('+'+refG.toFixed(2)+'g',8,cy-refPx-3);
+            ctx2.fillText('-'+refG.toFixed(2)+'g',8,cy+refPx+10);
+        }
+
+        // 4. Lineas de umbral de alarma (Superior e Inferior)
+        var thrPx=curThr*activeScale;
+        if(cy-thrPx>5){
+            ctx2.strokeStyle='rgba(255,59,48,0.75)';
+            ctx2.lineWidth=1.5;
+            ctx2.setLineDash([6,4]);
+            ctx2.beginPath();ctx2.moveTo(0,cy-thrPx);ctx2.lineTo(w,cy-thrPx);ctx2.stroke();
+            ctx2.beginPath();ctx2.moveTo(0,cy+thrPx);ctx2.lineTo(w,cy+thrPx);ctx2.stroke();
+            ctx2.setLineDash([]);
+            ctx2.fillStyle='rgba(255,59,48,0.85)';
+            ctx2.font='10px Outfit';
+            ctx2.fillText('Umbral '+curThr.toFixed(3)+'g',w-95,cy-thrPx-4);
+        }
+
+        // 5. Trazado de las ondas
+        var step=w/(N-1);
+
+        if(waveDisplayMode==='multiaxis'){
+            traceAxis(xH,'#3a86f0',1.2,cy,step,activeScale);
+            traceAxis(yH,'#34c759',1.2,cy,step,activeScale);
+            traceAxis(zH,'#ff9500',1.2,cy,step,activeScale);
+        }
+
+        // Onda Sismica Principal (Picos y Valles destacados)
+        ctx2.beginPath();
+        for(var i=0;i<N;i++){
+            var px=i*step;
+            var py=cy-(seismoWave[i]*activeScale);
+            if(i===0) ctx2.moveTo(px,py); else ctx2.lineTo(px,py);
+        }
+
+        // Color vibrante: Rojo si esta en alarma, o Cian Neón con brillo
+        var isExceeding=(maxAmp>=curThr);
+        ctx2.strokeStyle=isExceeding?'#ff3b30':'#00e5ff';
+        ctx2.lineWidth=2.4;
+        ctx2.shadowColor=isExceeding?'rgba(255,59,48,0.8)':'rgba(0,229,255,0.6)';
+        ctx2.shadowBlur=8;
+        ctx2.stroke();
+        ctx2.shadowBlur=0; // Reset sombra
+
+        // Relleno degradado sutil debajo de la onda
+        ctx2.lineTo(w,cy);ctx2.lineTo(0,cy);ctx2.closePath();
+        var grad=ctx2.createLinearGradient(0,cy-40,0,cy+40);
+        if(isExceeding){
+            grad.addColorStop(0,'rgba(255,59,48,0.22)');
+            grad.addColorStop(1,'rgba(255,59,48,0.01)');
+        }else{
+            grad.addColorStop(0,'rgba(0,229,255,0.18)');
+            grad.addColorStop(1,'rgba(0,229,255,0.01)');
+        }
+        ctx2.fillStyle=grad;
+        ctx2.fill();
+    }
+
+    function traceAxis(arr,color,thick,cy,step,scale){
+        ctx2.strokeStyle=color;
+        ctx2.lineWidth=thick;
+        ctx2.beginPath();
+        for(var i=0;i<N;i++){
+            var px=i*step,py=cy-(arr[i]*scale);
+            if(i===0) ctx2.moveTo(px,py); else ctx2.lineTo(px,py);
+        }
+        ctx2.stroke();
+    }
+
+    function drawMini(){
+        if(!miniCtx) return;
+        var w=miniCvs.width,h=miniCvs.height;
+        miniCtx.clearRect(0,0,w,h);
+        var step=w/(M-1),cy=h-4;
+        miniCtx.beginPath();
+        for(var i=0;i<M;i++){
+            var px=i*step,py=cy-(miniH[i]*cy*0.9);
+            if(i===0) miniCtx.moveTo(px,py); else miniCtx.lineTo(px,py);
+        }
+        miniCtx.strokeStyle='rgba(187,134,252,.75)';miniCtx.lineWidth=1.5;miniCtx.stroke();
+        miniCtx.lineTo(w,cy);miniCtx.lineTo(0,cy);miniCtx.closePath();
+        miniCtx.fillStyle='rgba(187,134,252,.08)';miniCtx.fill();
+    }
+
+    /* =======================================================
+       UI UPDATE
+    ======================================================= */
+    var lastAlarmState=0;
+    function updateUI(val,thr,alarm,upt){
+        document.getElementById('valVibe').innerHTML=val.toFixed(3)+'<small style="font-size:14px;font-weight:400;color:var(--muted);">g</small>';
+        document.getElementById('valThreshold').innerHTML=thr.toFixed(3)+'<small style="font-size:11px;color:var(--muted);">g</small>';
+        document.getElementById('valUptime').innerText=upt;
+
+        var pct=Math.min((val/thr)*100,100);
+        document.getElementById('vibeBar').style.width=pct+'%';
+        document.getElementById('vibePercent').innerText=Math.round(pct)+'%';
+
+        var isEdit=document.activeElement&&document.activeElement.id==='thresholdRange';
+        if(!isEdit){
+            document.getElementById('thresholdRange').value=thr;
+            document.getElementById('lblThreshold').innerText=thr.toFixed(3)+' g';
+        }
+
+        var hero=document.getElementById('alertHero'),
+            ht=document.getElementById('alarmStateText'),
+            hs=document.getElementById('alarmStateSub'),
+            hi=document.getElementById('heroIcon');
+
+        if(alarm===1){
+            hero.className='alert-hero active';
+            ht.innerText='¡ALERTA DE SISMO!';
+            hs.innerText='Vibracion: '+val.toFixed(3)+'g (Umbral: '+thr.toFixed(3)+'g)  ¡Mantente a salvo!';
+            hi.className='fa-solid fa-triangle-exclamation';
+            if(lastAlarmState===0){
+                showToast('¡SISMO DETECTADO!','err');
+                startSiren();
+            }
+        }else{
+            hero.className='alert-hero';
+            ht.innerText='Estable';
+            hs.innerText='Monitoreando micro-vibraciones tectonicas';
+            hi.className='fa-solid fa-house-circle-check';
+            if(lastAlarmState===1){
+                stopSiren();
+                setTimeout(fetchEvents,1200); // Actualizar historial tras sismo
+            }
+        }
+        lastAlarmState=alarm;
+    }
+
+    function updateLabels(){
+        var v=parseFloat(document.getElementById('thresholdRange').value).toFixed(3);
+        document.getElementById('lblThreshold').innerText=v+' g';
+        document.getElementById('lblDuration').innerText=document.getElementById('durationRange').value+' s';
+    }
+
+    function applyPreset(val,btnElem){
+        document.getElementById('thresholdRange').value=val;
+        updateLabels();
+        var btns=document.querySelectorAll('.preset-btn');
+        btns.forEach(function(b){b.classList.remove('active');});
+        if(btnElem) btnElem.classList.add('active');
+        sendConfig();
+    }
+
+    /* =======================================================
+       HISTORIAL Y DESCARGA CSV
+    ======================================================= */
+    function fetchEvents(){
+        apiFetch('/api/events')
+            .then(function(d){
+                if(d&&Array.isArray(d)){
+                    eventsList=d;
+                    renderEventsTable();
+                }
+            }).catch(function(){});
+    }
+
+    function renderEventsTable(){
+        var tbody=document.getElementById('eventsTableBody');
+        var badge=document.getElementById('eventBadge');
+        badge.innerText=eventsList.length+' evento'+(eventsList.length===1?'':'s');
+
+        if(eventsList.length===0){
+            tbody.innerHTML='<tr><td colspan="6" class="ev-empty"><i class="fa-solid fa-shield-halved" style="font-size:24px;margin-bottom:8px;display:block;opacity:.4;"></i>No se han registrado movimientos sismicos recientes en la memoria.</td></tr>';
+            return;
+        }
+
+        var html='';
+        for(var i=0;i<eventsList.length;i++){
+            var ev=eventsList[i];
+            var pga=(typeof ev.pga==='number')?ev.pga.toFixed(3):ev.pga;
+            var badgeClass='ev-leve';
+            if(ev.pga<0.015) badgeClass='ev-micro';
+            else if(ev.pga>=0.080) badgeClass='ev-fuerte';
+            else if(ev.pga>=0.035) badgeClass='ev-mod';
+
+            html+='<tr>'+
+                '<td><strong>'+(i+1)+'</strong></td>'+
+                '<td style="font-family:\'JetBrains Mono\',monospace;">'+(ev.time||'--')+'</td>'+
+                '<td style="font-family:\'JetBrains Mono\',monospace;font-weight:700;color:var(--accent);">'+pga+' g</td>'+
+                '<td><span class="ev-badge '+badgeClass+'">'+(ev.intensity||'Detectado')+'</span></td>'+
+                '<td>'+(ev.dur?ev.dur.toFixed(1):'--')+'s</td>'+
+                '<td><span style="background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;font-weight:600;">Eje '+(ev.axis||'Z')+'</span></td>'+
+            '</tr>';
+        }
+        tbody.innerHTML=html;
+    }
+
+    function addEventToTable(ev,isNew){
+        eventsList.unshift(ev);
+        if(eventsList.length>50) eventsList.pop();
+        renderEventsTable();
+        if(isNew) showToast('Nuevo hallazgo sismico guardado: '+ev.pga+'g ('+ev.intensity+')','warn');
+    }
+
+    function clearEvents(){
+        if(!confirm('¿Deseas borrar todo el historial de eventos sismicos de la memoria?')) return;
+        apiFetch('/api/events/clear')
+            .then(function(){
+                eventsList=[];
+                renderEventsTable();
+                showToast('Historial borrado','ok');
+            });
+    }
+
+    function exportCSV(){
+        if(eventsList.length===0){ showToast('No hay eventos para exportar','warn'); return; }
+        var csv='ID,Fecha y Hora,Aceleracion Pico (g),Intensidad Estimada,Duracion (seg),Eje Dominante\n';
+        for(var i=0;i<eventsList.length;i++){
+            var e=eventsList[i];
+            csv+=(i+1)+','+
+                 '"'+(e.time||'')+'",'+
+                 (e.pga||0)+','+
+                 '"'+(e.intensity||'')+'",'+
+                 (e.dur||0)+','+
+                 (e.axis||'Z')+'\n';
+        }
+        var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+        var url=URL.createObjectURL(blob);
+        var a=document.createElement('a');
+        a.href=url;
+        a.download='reporte_sismos_'+(new Date().toISOString().slice(0,10))+'.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('Reporte CSV descargado con exito','ok');
+    }
+
+    /* =======================================================
+       API REST
+    ======================================================= */
+    function apiBase(){
+        var h=localStorage.getItem('esp32_host')||window.location.hostname;
+        if(isEsp) h=window.location.hostname;
+        return 'http://'+h;
+    }
+    function apiFetch(path){
+        return fetch(apiBase()+path).then(function(r){return r.json();}).catch(function(){return null;});
+    }
+    function sendConfig(){
+        var thr=document.getElementById('thresholdRange').value,dur=document.getElementById('durationRange').value;
+        showToast('Guardando sensibilidad...','warn');
+        apiFetch('/api/config?threshold='+thr+'&duration='+dur)
+            .then(function(d){ showToast('Sensibilidad guardada: '+thr+'g','ok'); });
+    }
+    function loadConfig(){
+        fetch(apiBase()+'/api/get_config')
+            .then(function(r){return r.json();})
+            .then(function(d){
+                document.getElementById('thresholdRange').value=d.threshold;
+                document.getElementById('lblThreshold').innerText=d.threshold.toFixed(3)+' g';
+                document.getElementById('valThreshold').innerHTML=d.threshold.toFixed(3)+'<small style="font-size:11px;color:var(--muted);">g</small>';
+                curThr=d.threshold;
+                document.getElementById('durationRange').value=d.duration;
+                document.getElementById('lblDuration').innerText=d.duration+' s';
+                if(d.wifiSsid) document.getElementById('wifiSsid').value=d.wifiSsid;
+                if(d.sinricAppKey) document.getElementById('sinricAppKey').value=d.sinricAppKey;
+                if(d.sinricAppSecret) document.getElementById('sinricAppSecret').value=d.sinricAppSecret;
+                if(d.sinricDeviceId) document.getElementById('sinricDeviceId').value=d.sinricDeviceId;
+            }).catch(function(){});
+    }
+    function calibrate(){
+        showToast('Calibrando... Manten el sensor quieto.','warn');
+        apiFetch('/api/calibrate')
+            .then(function(d){ showToast(d?'¡Calibracion exitosa!':'Calibrado','ok'); });
+    }
+    function saveWifi(){
+        var s=document.getElementById('wifiSsid').value.trim(),p=document.getElementById('wifiPass').value;
+        if(!s){showToast('Ingresa el SSID','err');return;}
+        apiFetch('/api/wifi?ssid='+encodeURIComponent(s)+'&password='+encodeURIComponent(p))
+            .then(function(){showToast('WiFi guardado! Reiniciando...','ok');});
+    }
+    function saveSinric(){
+        var k=document.getElementById('sinricAppKey').value.trim(),
+            s=document.getElementById('sinricAppSecret').value.trim(),
+            id=document.getElementById('sinricDeviceId').value.trim();
+        if(!k||!s||!id){showToast('Completa las credenciales de Sinric','err');return;}
+        apiFetch('/api/sinricconfig?appKey='+encodeURIComponent(k)+'&appSecret='+encodeURIComponent(s)+'&deviceId='+encodeURIComponent(id))
+            .then(function(){showToast('Sinric Pro guardado! Reiniciando...','ok');});
+    }
+
+    /* =======================================================
+       TOAST
+    ======================================================= */
+    var tTO;
+    function showToast(msg,type){
+        type=type||'ok';
+        var t=document.getElementById('toast'),i=document.getElementById('toastIcon'),m=document.getElementById('toastMsg');
+        m.innerText=msg; t.className='toast show '+type;
+        i.className=type==='ok'?'fa-solid fa-circle-check':type==='err'?'fa-solid fa-triangle-exclamation':'fa-solid fa-circle-info';
+        clearTimeout(tTO); tTO=setTimeout(function(){t.classList.remove('show');},4200);
+    }
+</script>
+</body>
+</html>

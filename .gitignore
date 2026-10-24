@@ -1,0 +1,33 @@
+# Compilación y archivos binarios pesados
+*.elf
+*.map
+*.o
+*.a
+*.d
+*.tmp
+seismic_alarm/build/esp32.esp32.esp32/
+seismic_alarm/build/*.elf
+seismic_alarm/build/*.map
+seismic_alarm/build/*.merged.bin
+
+# Archivos del sistema y logs
+*.log
+debug.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Vercel y Node
+.vercel
+node_modules/
+
+# Archivos temporales de trabajo
+scratch/
+decompress.ps1
+extract.py
+build_vercel.py
+refactor_ino.py
+trim_strings.py
+ota_upload.py
+analyze_map.py
+dashboard_decompressed.html

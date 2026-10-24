@@ -1,0 +1,17 @@
+- [x] Crear la estructura de directorios del proyecto ESP32
+- [x] Desarrollar la interfaz web Glassmorphism (`web_dashboard.h`) con sismógrafo y panel de Tuya/Alexa
+- [x] Desarrollar el firmware principal del ESP32 (`seismic_alarm.ino`)
+- [x] Configurar el algoritmo de detección de sismos y calibración del MPU-6050
+- [x] Implementar la emulación Alexa local (`Espalexa`) y servidor web con WebSockets
+- [x] Añadir esqueleto de control para LEDs WS2812B y Buzzer
+- [x] Crear la guía paso a paso detallada para el usuario en `walkthrough.md`
+- [x] Corregir la firma de Tuya API v2.0 agregando el nonce y trim de cadenas
+- [x] Corregir el conflicto de onNotFound de Espalexa en el servidor web (solución a Alexa local)
+- [x] Implementar el cliente de API directa de Tuya Cloud en el ESP32 con NTP
+- [x] Desarrollar el administrador de red WiFi dinámico y la persistencia de sliders en el inicio
+- [x] Optimizar la sensibilidad del sensor MPU-6050 (filtro alfa 0.995, rango desde 0.005g y presets)
+- [x] Implementar auto-escalado dinámico de onda (picos y valles hiper-visibles hasta 1200x)
+- [x] Desarrollar memoria histórica NVS ("Caja Negra") de sismos con fecha/hora NTP y exportación CSV
+- [x] Crear paquete listo para desplegar en GitHub y Vercel (`vercel-dashboard/`)
+- [x] Eliminar sistema de botón de pruebas manuales ("Probar Alarma")
+- [x] Compilar binario optimizado para OTA y documentar diagnóstico de particiones
