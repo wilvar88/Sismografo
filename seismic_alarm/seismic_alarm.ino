@@ -29,6 +29,7 @@
 
 // --- LIBRERÍAS DE SOPORTE CONDICIONAL / INTEGRACIÓN ---
 #include <Adafruit_NeoPixel.h>
+#include <PubSubClient.h>
 #include <SinricPro.h>
 #include <SinricProMotionsensor.h>
 #include "web_dashboard.h"
@@ -55,6 +56,17 @@ WebServer server(80);
 WebSocketsServer webSocket(81);
 Preferences preferences;
 Adafruit_NeoPixel strip(NUM_LEDS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
+// --- CLIENTE Y CONFIGURACIÓN MQTT CLOUD (Monitoreo Global 24/7 sin PC) ---
+WiFiClient espMqttClient;
+PubSubClient mqttClient(espMqttClient);
+const char* MQTT_BROKER       = "broker.emqx.io";
+const int   MQTT_PORT         = 1883;
+const char* MQTT_TOPIC_DATA   = "sismografo/wilvar88/data";
+const char* MQTT_TOPIC_EVENTS = "sismografo/wilvar88/events";
+const char* MQTT_TOPIC_CMD    = "sismografo/wilvar88/cmd";
+const char* MQTT_TOPIC_STATUS = "sismografo/wilvar88/status";
+unsigned long lastMqttReconnect = 0;
 
 // --- ESTRUCTURA Y MEMORIA HISTÓRICA DE EVENTOS SÍSMICOS ("CAJA NEGRA") ---
 struct SeismicEvent {
@@ -142,6 +154,8 @@ bool isTimeSynced();
 void handleAPIGetConfig();
 void handleAPIWifi();
 void handleAPISinricConfig();
+void checkMqtt();
+void mqttCallback(char* topic, byte* payload, unsigned int length);
 
 void setup() {
   Serial.begin(115200);
@@ -268,6 +282,11 @@ void setup() {
   initMDNS();
 
   
+  // 10. Configurar cliente MQTT Cloud (EMQX)
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(512);
+
   server.begin();
   Serial.println("[OK] Sistema listo");
   Serial.printf("Dashboard : http://%s.local  o  http://%s\n", MDNS_HOSTNAME, WiFi.localIP().toString().c_str());
@@ -278,6 +297,7 @@ void loop() {
   // Correr bucles de servidores de fondo
   server.handleClient();
   webSocket.loop();
+  checkMqtt();
   if (sinricEnabled) {
     SinricPro.handle();
   }
@@ -372,6 +392,9 @@ void loop() {
                           String(eventCount);
                           
     webSocket.broadcastTXT(telemetryData);
+    if (mqttClient.connected()) {
+      mqttClient.publish(MQTT_TOPIC_DATA, telemetryData.c_str());
+    }
   }
 
   delay(10); // Muestreo estable a ~100Hz
@@ -640,7 +663,9 @@ void handleAPICalibrate() {
     strip.fill(strip.Color(0, 0, 0)); strip.show(); delay(200);
   }
 
-  server.send(200, "application/json", "{\"status\":\"success\",\"offset_x\":" + String(calOffsetX, 4) + ",\"offset_y\":" + String(calOffsetY, 4) + "}");
+  if (server.client()) {
+    server.send(200, "application/json", "{\"status\":\"success\",\"offset_x\":" + String(calOffsetX, 4) + ",\"offset_y\":" + String(calOffsetY, 4) + "}");
+  }
 }
 
 // --- GESTIÓN DE MEMORIA HISTÓRICA DE SISMOS ("CAJA NEGRA") ---
@@ -716,6 +741,9 @@ void recordSeismicEvent(float maxMag, float durSec, char domAxis) {
                   ",\"axis\":\"" + String(ev.axis) + 
                   "\",\"intensity\":\"" + String(ev.intensity) + "\"}";
   webSocket.broadcastTXT(evJson);
+  if (mqttClient.connected()) {
+    mqttClient.publish(MQTT_TOPIC_EVENTS, evJson.c_str(), true);
+  }
   
   Serial.printf("[SISMO] #%d %s %.3fg %s\n", ev.id, ev.time, ev.pga, ev.intensity);
 }
@@ -920,3 +948,53 @@ void handleOTAUpload() {
     }
   }
 }
+
+// =============================================================================
+// GESTIÓN MQTT CLOUD (broker.emqx.io - 24/7 sin PC)
+// =============================================================================
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  String message;
+  for (unsigned int i = 0; i < length; i++) message += (char)payload[i];
+  message.trim();
+  Serial.printf("[MQTT RX] %s -> %s\n", topic, message.c_str());
+
+  if (String(topic) == MQTT_TOPIC_CMD) {
+    if (message.startsWith("threshold:")) {
+      float t = message.substring(10).toFloat();
+      if (t >= 0.005 && t <= 1.0) {
+        threshold = t;
+        preferences.begin("seismic-alarm", false);
+        preferences.putFloat("threshold", threshold);
+        preferences.end();
+        Serial.printf("[MQTT] Umbral remoto actualizado: %.3fg\n", threshold);
+      }
+    } else if (message == "calibrate") {
+      handleAPICalibrate();
+    }
+  }
+}
+
+void checkMqtt() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  if (!mqttClient.connected()) {
+    unsigned long now = millis();
+    if (now - lastMqttReconnect > 5000) {
+      lastMqttReconnect = now;
+      String clientId = "ESP32_Sismo_" + String((uint32_t)ESP.getEfuseMac(), HEX);
+      Serial.print("[MQTT] Conectando a broker.emqx.io... ");
+      // Conectar con LWT (Last Will and Testament) para avisar si el sensor se apaga
+      if (mqttClient.connect(clientId.c_str(), MQTT_TOPIC_STATUS, 1, true, "offline")) {
+        Serial.println("¡Conectado!");
+        mqttClient.publish(MQTT_TOPIC_STATUS, "online", true);
+        mqttClient.subscribe(MQTT_TOPIC_CMD);
+      } else {
+        Serial.printf("Fallo rc=%d\n", mqttClient.state());
+      }
+    }
+  } else {
+    mqttClient.loop();
+  }
+}
+

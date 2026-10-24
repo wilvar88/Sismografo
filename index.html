@@ -6,6 +6,7 @@
     <title>Sismografo IoT Cloud - Monitor Sismico Global</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
     <style>
         :root {
             --bg: linear-gradient(135deg,#0c0917 0%,#160b29 50%,#05050d 100%);
@@ -668,11 +669,19 @@
     }
 
     /* =======================================================
-       WEBSOCKET Y COMUNICACION
+       WEBSOCKET Y MQTT CLOUD (24/7 SIN PC)
     ======================================================= */
-    var ws=null,isEsp=(window.location.hostname!=='localhost'&&window.location.hostname!=='127.0.0.1'&&window.location.protocol!=='file:');
+    var ws=null, mqttClient=null, isMqttActive=false;
+    var isEsp=(window.location.hostname!=='localhost'&&window.location.hostname!=='127.0.0.1'&&window.location.protocol!=='file:');
+    var isVercel=(window.location.hostname.indexOf('vercel.app')>=0 || (window.location.protocol==='https:' && window.location.hostname!=='localhost'));
     var currentHost=window.location.hostname||'192.168.1.36', wsPort=81, discoveryAttempt=0, HOSTS_TO_TRY=[];
     var eventsList=[];
+
+    var MQTT_BROKER_WS = 'wss://broker.emqx.io:8084/mqtt';
+    var MQTT_TOPIC_DATA = 'sismografo/wilvar88/data';
+    var MQTT_TOPIC_EVENTS = 'sismografo/wilvar88/events';
+    var MQTT_TOPIC_CMD = 'sismografo/wilvar88/cmd';
+    var MQTT_TOPIC_STATUS = 'sismografo/wilvar88/status';
 
     function buildHostList(){
         HOSTS_TO_TRY=[];
@@ -684,12 +693,32 @@
         var cloud=localStorage.getItem('cloud_tunnel_url');
         if(cloud) document.getElementById('cloudTunnelUrl').value=cloud;
     }
-    function startDiscovery(){ buildHostList(); var curH = localStorage.getItem("esp32_host") || "192.168.1.36"; var inp = document.getElementById("cloudTunnelInput"); if(inp) inp.value = curH; discoveryAttempt=0; tryNextHost(); }
+
+    function startDiscovery(){
+        if(isVercel){
+            console.log('[Sismografo] Ejecutando en Vercel -> Conectando a Cloud MQTT');
+            connectMqtt();
+        } else {
+            buildHostList();
+            var curH = localStorage.getItem("esp32_host") || "192.168.1.36";
+            var inp = document.getElementById("cloudTunnelInput");
+            if(inp) inp.value = curH;
+            discoveryAttempt=0;
+            tryNextHost();
+        }
+    }
+
     function tryNextHost(){
-        if(discoveryAttempt>=HOSTS_TO_TRY.length){ document.getElementById('discoveryBar').style.display='flex'; return; }
+        if(discoveryAttempt>=HOSTS_TO_TRY.length){
+            // Si fallo en la red local, intentar Cloud MQTT automaticamente
+            console.log('[Sismografo] Red local no encontrada -> Conectando a Cloud MQTT');
+            connectMqtt();
+            return;
+        }
         var host=HOSTS_TO_TRY[discoveryAttempt++];
         connectWebSocket(host);
     }
+
     function connectManual(){
         var ip=document.getElementById('manualIp').value.trim();
         if(!ip){ showToast('Ingresa una IP o host','err'); return; }
@@ -697,6 +726,7 @@
         document.getElementById('discoveryBar').style.display='none';
         connectWebSocket(ip);
     }
+
     function saveCloudUrl(){
         var u=document.getElementById('cloudTunnelUrl').value.trim();
         localStorage.setItem('cloud_tunnel_url',u);
@@ -706,6 +736,7 @@
             connectWebSocket(cleanHost);
         }
     }
+
     function connectWebSocket(host){
         if(ws){ try{ws.close();}catch(e){} ws=null; }
         var isSecure=(window.location.protocol==='https:');
@@ -717,9 +748,10 @@
             var to=setTimeout(function(){ try{ws.close();}catch(e){} tryNextHost(); },3500);
             ws.onopen=function(){
                 clearTimeout(to);
+                isMqttActive=false;
                 localStorage.setItem('esp32_host',host);
                 document.getElementById('statusDot').className='status-dot connected';
-                document.getElementById('statusText').innerText='Conectado';
+                document.getElementById('statusText').innerText='WiFi Local';
                 document.getElementById('discoveryBar').style.display='none';
                 showToast('Conectado a '+host,'ok');
                 fetchDeviceInfo(host);
@@ -734,6 +766,74 @@
             ws.onmessage=onMessage;
             ws.onerror=function(){ clearTimeout(to); };
         }catch(e){ tryNextHost(); }
+    }
+
+    function connectMqtt(){
+        if(typeof mqtt === 'undefined'){
+            setTimeout(connectMqtt, 400);
+            return;
+        }
+        if(mqttClient){ try{mqttClient.end();}catch(e){} }
+        document.getElementById('statusDot').className='status-dot';
+        document.getElementById('statusText').innerText='Conectando Cloud...';
+
+        try{
+            var clientId = 'sismo_web_' + Math.random().toString(16).substring(2, 10);
+            mqttClient = mqtt.connect(MQTT_BROKER_WS, {
+                clientId: clientId,
+                clean: true,
+                connectTimeout: 8000,
+                reconnectPeriod: 3500
+            });
+
+            mqttClient.on('connect', function(){
+                isMqttActive = true;
+                document.getElementById('statusDot').className='status-dot connected';
+                document.getElementById('statusText').innerText='Cloud 24/7';
+                document.getElementById('discoveryBar').style.display='none';
+                showToast('Conectado a Cloud MQTT (24/7 sin PC)','ok');
+
+                mqttClient.subscribe(MQTT_TOPIC_DATA);
+                mqttClient.subscribe(MQTT_TOPIC_EVENTS);
+                mqttClient.subscribe(MQTT_TOPIC_STATUS);
+            });
+
+            mqttClient.on('message', function(topic, payload){
+                var str = payload.toString();
+                if(topic === MQTT_TOPIC_DATA){
+                    var d = str.split(',');
+                    if(d.length >= 7){
+                        var x = parseFloat(d[0]), y = parseFloat(d[1]), z = parseFloat(d[2]),
+                            mag = parseFloat(d[3]), thr = parseFloat(d[4]), alarm = parseInt(d[5]), upt = d[6];
+                        pushPoint(x, y, z, mag, thr);
+                        updateUI(mag, thr, alarm, upt);
+                    }
+                } else if(topic === MQTT_TOPIC_EVENTS){
+                    try{
+                        var ev = JSON.parse(str);
+                        addEventToTable(ev, true);
+                    }catch(e){}
+                } else if(topic === MQTT_TOPIC_STATUS){
+                    if(str === 'offline'){
+                        document.getElementById('statusDot').className='status-dot disconnected';
+                        document.getElementById('statusText').innerText='Sensor Apagado';
+                        showToast('El sensor está apagado o sin internet','err');
+                    } else if(str === 'online'){
+                        document.getElementById('statusDot').className='status-dot connected';
+                        document.getElementById('statusText').innerText='Cloud 24/7';
+                    }
+                }
+            });
+
+            mqttClient.on('offline', function(){
+                if(isMqttActive){
+                    document.getElementById('statusDot').className='status-dot disconnected';
+                    document.getElementById('statusText').innerText='Reconectando Nube...';
+                }
+            });
+        }catch(e){
+            console.error('MQTT Connect err', e);
+        }
     }
 
     function fetchDeviceInfo(host){
@@ -1128,8 +1228,13 @@
     function sendConfig(){
         var thr=document.getElementById('thresholdRange').value,dur=document.getElementById('durationRange').value;
         showToast('Guardando sensibilidad...','warn');
-        apiFetch('/api/config?threshold='+thr+'&duration='+dur)
-            .then(function(d){ showToast('Sensibilidad guardada: '+thr+'g','ok'); });
+        if(isMqttActive && mqttClient && mqttClient.connected){
+            mqttClient.publish(MQTT_TOPIC_CMD, 'threshold:'+thr);
+            showToast('Sensibilidad enviada vía Cloud MQTT: '+thr+'g','ok');
+        } else {
+            apiFetch('/api/config?threshold='+thr+'&duration='+dur)
+                .then(function(d){ showToast('Sensibilidad guardada: '+thr+'g','ok'); });
+        }
     }
     function loadConfig(){
         fetch(apiBase()+'/api/get_config')
@@ -1149,8 +1254,13 @@
     }
     function calibrate(){
         showToast('Calibrando... Manten el sensor quieto.','warn');
-        apiFetch('/api/calibrate')
-            .then(function(d){ showToast(d?'¡Calibracion exitosa!':'Calibrado','ok'); });
+        if(isMqttActive && mqttClient && mqttClient.connected){
+            mqttClient.publish(MQTT_TOPIC_CMD, 'calibrate');
+            showToast('Comando de calibración enviado vía Cloud MQTT','ok');
+        } else {
+            apiFetch('/api/calibrate')
+                .then(function(d){ showToast(d?'¡Calibracion exitosa!':'Calibrado','ok'); });
+        }
     }
     function saveWifi(){
         var s=document.getElementById('wifiSsid').value.trim(),p=document.getElementById('wifiPass').value;

@@ -27,10 +27,11 @@ Sistema integral de detección, registro y monitoreo sísmico en tiempo real con
   * Sincronización horaria vía NTP oficial para Colombia (`co.pool.ntp.org`, UTC-5).
   * Guarda: Timestamp, aceleración máxima (PGA), grado estimado en Escala Mercalli, duración en segundos y eje dominante.
   * Botón para **Descargar Reporte CSV** compatible directamente con Microsoft Excel.
-* 🌐 **Monitoreo Remoto Global**: Diseñado para desplegarse en **Vercel** y monitorear el sensor desde cualquier lugar del mundo mediante túnel cifrado seguro sin abrir puertos en el router.
+* ☁️ **Monitoreo Global Autónomo (Cloud MQTT 24/7 - Cero PC)**: El ESP32 transmite su telemetría directamente a un broker MQTT seguro en la nube (`broker.emqx.io`). Tu panel en **Vercel** se conecta mediante `wss://` desde cualquier lugar del mundo **sin necesidad de dejar ninguna computadora encendida en tu casa**.
+* 🌐 **Conexión Híbrida Inteligente**: Si estás en casa en tu WiFi, el panel se conecta directo al ESP32 por WebSockets de ultra baja latencia. Si estás en la calle con datos móviles, cambia automáticamente a Cloud MQTT 24/7.
 * 🧪 **Modo Simulador Integrado**: Permite previsualizar la interfaz y probar alertas con sismos simulados desde el celular sin necesidad de tener el sensor conectado.
 * 🚀 **Actualizaciones Inalámbricas OTA**: Página web `/update` integrada para cargar nuevos firmwares `.bin` vía WiFi sin desconectar el equipo de la pared.
-* 🗣️ **Integración Alexa / Smart Life**: Sensor de movimiento virtual mediante **Sinric Pro** para detonar rutinas de voz inmediatas en altavoces Echo y encendido de enchufes o luces inteligentes.
+* 🗣️ **Notificaciones Push y Alexa**: Sensor de movimiento virtual mediante **Sinric Pro** para detonar rutinas de voz inmediatas en altavoces Echo y enviar notificaciones emergentes a tu celular en cualquier lugar del mundo.
 
 ---
 
@@ -50,19 +51,29 @@ Este repositorio está preparado para desplegarse inmediatamente en Vercel:
 
 ---
 
-## 🌍 Monitoreo Remoto Fuera de Casa (Cloudflare Tunnel Gratuito)
+## ☁️ Monitoreo Global Autónomo (Cloud MQTT 24/7)
 
-Dado que Vercel se sirve con cifrado HTTPS, los navegadores exigen conexiones seguras (`wss://`) para recibir datos en vivo. Para enlazar tu ESP32 con Vercel sin abrir puertos en el módem:
+¡Tu sismógrafo es **100% independiente**! No necesitas tener ninguna PC encendida en tu hogar:
 
-1. En una computadora de tu casa (en la misma red WiFi del sismógrafo), abre una terminal y ejecuta:
-   ```bash
-   cloudflared tunnel --url http://192.168.1.36:80
-   ```
-2. Cloudflare te entregará una URL segura instantánea (ejemplo: `https://xxx.trycloudflare.com`).
-3. Abre tu aplicación en Vercel, haz clic en el ícono de **Nube / Configuración** (<i class="fa-solid fa-cloud"></i>) arriba a la derecha, pega la dirección y pulsa **Conectar Ahora**.
-4. ¡El dashboard transmitirá la telemetría en tiempo real desde tu casa hacia tu celular en cualquier parte del mundo!
+```
+[ ESP32 en tu pared ] ---> WiFi Hogar ---> [ Broker Cloud EMQX ] ---> [ Tu Celular en Vercel ]
+```
+
+1. El ESP32 publica los datos dinámicos a `broker.emqx.io` por el puerto 1883.
+2. Al abrir tu enlace de Vercel en cualquier navegador o celular, se suscribe automáticamente vía WebSockets Seguros (`wss://broker.emqx.io:8084/mqtt`).
+3. Puedes ver la onda en vivo, cambiar la sensibilidad y recalibrar el sensor desde cualquier país del mundo.
 
 ---
+
+## 🔔 Notificaciones Push en tu Celular (Alexa & Sinric Pro)
+
+Para recibir alertas flotantes en la pantalla de bloqueo de tu celular cuando ocurra un movimiento:
+
+1. Abre la app **Amazon Alexa** en tu teléfono $\rightarrow$ **Más** $\rightarrow$ **Rutinas**.
+2. Selecciona la rutina de tu sismógrafo $\rightarrow$ Toca el botón **`+`** (Agregar acción).
+3. Selecciona **Notificaciones** $\rightarrow$ **Notificación**.
+4. Escribe el mensaje deseado (ej: `🚨 ¡ALERTA SÍSMICA! Movimiento detectado en Torre 7 Apto 902`).
+5. Guarda la rutina. Cada vez que el sensor MPU-6050 se active, tu celular vibrará y te notificará al instante.
 
 ## 🔌 Conexiones de Hardware (Pinout)
 
